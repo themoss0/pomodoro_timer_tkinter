@@ -1,4 +1,6 @@
-# **Pomidoro**
+# Pomidoro
+<img width="256" height="256" alt="free-icon-tomato-1790387" src="https://github.com/user-attachments/assets/e9d992a2-87d9-4130-bb39-8ae0dd43952d" />
+
 
 **Pomidoro - This is a simple timer that follows the Pomodoro rule.**
 
