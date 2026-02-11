@@ -2,7 +2,7 @@ import tkinter as tk
 import os
 import sys
 
-from playsound3 import *
+from playsound3 import playsound
 
 
 def resource_path(relative_path):
