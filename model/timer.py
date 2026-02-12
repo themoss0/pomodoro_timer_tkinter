@@ -4,32 +4,22 @@ import sys
 
 from playsound3 import playsound
 
-
-def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
+from sound_manager import get_sound_manager
+from viewmodel.timer_view_model import State
 
 class Timer(tk.Frame):
-    def __init__(self, parent):
+    def __init__(self, parent, timervm):
         super().__init__(parent)
 
         self.parent = parent
-        
-        self.time_left = 25 * 60
-        self.cycle_count = 0
-        self.running = False
-        self.mode = 'idle'
-        self.mode_before = 'idle'
+        self.timervm = timervm
+        self.time = timervm.get_seconds_of_time()
+        self.time_work_seconds = self.time[0]
+        self.time_rest_seconds = self.time[1]
+        self.time_long_rest_seconds = self.time[2]
 
-        self.is_rest = False
-
-        self.is_warning_sound_played = False
-
-        self.audio_interval = resource_path('data/audio/interval_audio.mp3')
-        self.audio_warning = resource_path('data/audio/start_after_rest.mp3')
+        self.is_sound_played = False
+        self.sound = get_sound_manager()
 
         self._create_ui()
         self._update_timer()
@@ -37,7 +27,7 @@ class Timer(tk.Frame):
     def _create_ui(self):
         self.timer_label = tk.Label(
             self,
-            text='25:00',
+            text=f'{self.time[0]//60:02d}:{self.time[0]%60:02d}',
             font=('Arial', 48)
         )
         self.timer_label.pack(pady=10)
@@ -77,108 +67,130 @@ class Timer(tk.Frame):
 
 
     def _update_timer(self):
-        if (self.running):
 
-            if (self.time_left > 0):
+        is_running: bool = self.timervm.get_running_mode()
 
-                self.time_left -= 1
-                minutes = self.time_left // 60
-                seconds = self.time_left % 60
-                self.timer_label.config(text=f'{minutes:02d}:{seconds:02d}')
+        if (is_running):
+            #======== WORK ========
+            if (self.timervm.state == State.WORK):
+                self.status_label.config(text=f"💪 Работай! {self.timervm.cycle_count+1}/4", fg="red")
+                if (self.time_work_seconds > 0):
+                    self.time_work_seconds -= 1
+                    minutes = self.time_work_seconds // 60
+                    seconds = self.time_work_seconds % 60
+                    self.timer_label.config(text=f'{minutes:02d}:{seconds:02d}')
 
-            if (self.time_left <= 9 and self.is_warning_sound_played == False and self.mode=='rest'):
-                    playsound(r'C:\\Users\\Admin\\Documents\\github\\pomodoro_timer_tkinter\\core\\data\\audio\\start_after_rest.mp3', block=False)
-                    self.is_warning_sound_played = True
-                    print(f'Песенка отыграла. {self.mode=}')
-                    pass
-                    
-            elif (self.time_left == 0):
-                print(f'Время вышло! Состояние: {self.mode}.')
-                self.is_warning_sound_played = False
-                if (self.mode == 'work'):
-                    print(f'Состояние на момент завершения времени: {self.mode}. Ставится rest...')
-                    self.mode = 'rest'
-                    self.mode_before = self.mode
-                    self.is_rest = True
-                    print(f'Изменение состояния: {self.mode}.')
-                    print('--------------------------------')
+                    if (self.time_work_seconds == 0):
+                        self.timervm.cycle_count += 1
+                        self.sound.play_async('interval')
+                        self.is_sound_played = False
 
-                    self.cycle_count+=1
-                    try:
-                        playsound(r'C:\\Users\\Admin\\Documents\\github\\pomodoro_timer_tkinter\\core\\data\\audio\\interval_audio.mp3', block=False)
-                        print('Песня окончания отыграла!')
-                    except:
-                        print('Ошибка! Не удалось отыграть песню окончания рабочего времени!')
-                        pass
-                    if (self.cycle_count % 4 == 0 and self.cycle_count > 0):
-                        print('Прошла 4 25-ти минутка. Длительный перерыв')
-                        print('--------------------------------')
+                        if (self.timervm.cycle_count % 4 == 0 and self.timervm.cycle_count > 0):
+                            self.reset_timer_for_state(State.LONG_REST)
+                            self.timervm.set_long_rest_configuration()
+                        else:
+                            self.reset_timer_for_state(State.REST)
+                            self.timervm.set_rest_configuration()
+            #======== REST ========
+            elif (self.timervm.state == State.REST):
+                self.status_label.config(text=f"😴 Отдыхай! {self.timervm.cycle_count}/4", fg="green")
+                #print('===REST===')
+                if (self.time_rest_seconds > 0):
+                    self.time_rest_seconds -= 1
+                    minutes = self.time_rest_seconds // 60
+                    seconds = self.time_rest_seconds % 60
+                    self.timer_label.config(text=f'{minutes:02d}:{seconds:02d}')
 
-                        self.time_left = 30 * 60
-                        self.status_label.config(text=f"😴 Длительный перерыв! (цикл {self.cycle_count})", fg="purple")
-                        self.cycle_count = 0
+                    if (self.time_rest_seconds <= 9 and self.time_rest_seconds > 0):
+                        if not(self.is_sound_played):
+                            self.sound.play_async('warning')
+                            self.is_sound_played = True
                     else:
-                        print('Обычный интервал. Отдых...')
-                        print('--------------------------------')
-                        self.time_left = 5 * 60
-                        self.status_label.config(text=f"😴 Отдыхай! (цикл {self.cycle_count})", fg="green")
-                
-                elif (self.mode == 'rest'):
-                    print(f'Состояние на момент завершения времени: {self.mode}. Ставится work...')
-                    self.time_left = 25 * 60
-                    self.mode = 'work'
-                    self.mode_before = self.mode
-                    self.is_rest = False
-                    print(f'Изменение состояния: {self.mode}.')
-                    print('--------------------------------')
-                    self.status_label.config(text="💪 Работай!", fg="red")
-        
+                        self.is_sound_played = False
+
+                    if (self.time_rest_seconds == 0):
+                        self.is_sound_played = False
+                        self.reset_timer_for_state(State.WORK)
+                        self.timervm.set_work_configuration()
+            #======== LONG_REST ========
+            elif (self.timervm.state == State.LONG_REST):
+                self.status_label.config(text=f"🎉 Длинный перерыв! 4/4 ✅", fg="purple")
+                if (self.time_long_rest_seconds > 0):
+                    self.time_long_rest_seconds -=1
+                    minutes = self.time_long_rest_seconds // 60
+                    seconds = self.time_long_rest_seconds % 60
+                    self.timer_label.config(text=f'{minutes:02d}:{seconds:02d}')
+                    if (self.time_long_rest_seconds <= 9 and self.time_long_rest_seconds > 0):
+                        if not(self.is_sound_played):
+                            self.sound.play_async('warning')
+                            self.is_sound_played = True
+                    else:
+                        self.is_sound_played = False
+                    if (self.time_long_rest_seconds == 0):
+                        self.is_sound_played = False
+                        self.reset_timer_for_state(State.WORK)
+                        self.timervm.set_work_configuration()
+
+        else:
+            if (self.timervm.state == State.PAUSED):
+                self.status_label.config(text=f"⏸️ Пауза", fg="black")
+            #print('ТАЙМЕР НЕ РАБОТАЕТ!')
+
         self.after(1000, self._update_timer)
 
 
-    def start(self):
-        print('Нажат start:')
-        print(f'Состояние до нажатия: {self.mode_before}.')
-        self.running = True
-        if (self.mode_before == 'idle'):
-            self.mode = 'work'
-            self.mode_before = self.mode
-            self.status_label.config(text="💪 Работай!", fg="red")
-        if (self.mode_before == 'paused'):
-            if (self.is_rest):
-                self.mode = 'rest'
-                self.mode_before = self.mode
-                self.status_label.config(text=f'😴 Отдыхай! (цикл {self.cycle_count})', fg='green')
+    def reset_timer_for_state(self, state: State) -> None:
+        current_times = self.timervm.get_seconds_of_time()
+    
+        if (state == State.WORK):
+            self.time_work_seconds = current_times[0]
+        elif (state == State.REST):
+            self.time_rest_seconds = current_times[1]
+        elif (state == State.LONG_REST):
+            self.time_long_rest_seconds = current_times[2]
+
+
+        
+    def check_state(self):
+        state = self.timervm.state
+        current_time = self.timervm.get_seconds_of_time()
+        if state == State.IDLE:
+            self.timervm.set_state(State.WORK)
+            self.timervm.set_is_rest_mode(False) 
+        elif state == State.PAUSED:
+            if (self.timervm.is_rest):
+                self.timervm.set_state(State.REST)
+                self.timervm.set_is_rest_mode(True)
             else:
-                self.mode = 'work'
-                self.mode_before = self.mode
-                self.status_label.config(text="💪 Работай!", fg="red")
-        print(f'Состояние после нажатия: {self.mode}, {self.is_rest=}.')
-        print('--------------------------------')
+                self.timervm.set_state(State.WORK)
+                self.timervm.set_is_rest_mode(False)
+
+
+    def _reset_time_values(self) -> None:
+        """Полный сброс всех временных значений"""
+        self.time = self.timervm.get_seconds_of_time()
+        self.time_work_seconds = self.time[0]
+        self.time_rest_seconds = self.time[1]
+        self.time_long_rest_seconds = self.time[2]
+        self.timer_label.config(text=f'{self.time[0]//60:02d}:{self.time[0]%60:02d}') 
+        self.status_label.config(text="🍅 Помидорка", fg="black")       
+
+
+    def start(self) -> None:
+        #print('===START===')
+        self.timervm.set_running_mode(mode=True)
+        self.check_state()
+
         
 
-    def pause(self):
-        print('Нажат pause:')
-        print(f'Состояние до нажатия: {self.mode_before}.')
-        self.running = False
-        self.mode = 'paused'
-        self.mode_before = self.mode
-        self.status_label.config(text=f"⏸️ Пауза", fg="black")
-        print(f'Состояние после нажатия: {self.mode}, {self.is_rest=}.')
-        print('--------------------------------')
+    def pause(self) -> None:
+        if (self.timervm.state == State.WORK or self.timervm.state == State.REST or self.timervm.state == State.LONG_REST):
+            self.timervm.set_paused_configuration()
+            self.is_sound_played = False
 
-    def reset(self):
-        print('Нажат reset:')
-        print(f'Состояние до нажатия: {self.mode_before}.')
-        self.running = False
-        self.is_rest = False
-        self.time_left = 25 * 60
-        self.mode = 'idle'
-        self.mode_before = self.mode
-        self.timer_label.config(text=f"{25:02d}:{00:02d}")
-        self.cycle_count=0
-        self.is_warning_sound_played = False
-        self.status_label.config(text="🍅 Помидорка", fg="black")
-        print(f'Состояние после нажатия: {self.mode}, {self.is_rest=}.')
-        print('--------------------------------')
+    def reset(self) -> None:
+        self.timervm.set_reset_configuration()
+        self._reset_time_values()
+        self.is_sound_played = False
+        
 
