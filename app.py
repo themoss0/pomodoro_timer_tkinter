@@ -3,20 +3,38 @@ import tkinter as tk
 import os
 from os import sys
 
+from model.localization import Localization
+from model.theme_manager import ThemeManager
 from model.timer import Timer
 from viewmodel.timer_view_model import State, Time, TimerViewModel
+from widgets.menu_widget import MenuWidget
 
 class Config:
     WINDOW_SIZE='300x400'
-    WINDOW_TITLE='Таймер-помидорка'
+    WINDOW_TITLE='Pomidoro'
 
 class Application:
     def __init__(self):
         self.app=tk.Tk()
         self.app.resizable(False, False)
-        self._set_icon()
 
+        self._set_icon()
         self._setup_window()
+
+        self.localization: Localization = Localization('ru')
+
+        self.theme_manager: ThemeManager = ThemeManager(self.app, current_theme='light')
+        self.theme_manager.apply_theme(self.app, self.theme_manager.current_theme, '__init__')
+
+        timevm = TimerViewModel(default_state=State.IDLE, time_interval=Time.TIME_25_05_30)
+        self.timer: Timer = Timer(parent=self.app, timervm=timevm, theme_manager=self.theme_manager, localization=self.localization)
+
+        self.timer.set_theme_manager(self.theme_manager)
+        self.timer.set_localization(self.localization)
+        
+        self._setup_menu()
+        self.app.menu = self.menu
+
         self._setup_timer()
 
 
@@ -50,8 +68,12 @@ class Application:
         self.app.geometry(Config.WINDOW_SIZE)
 
     def _setup_timer(self):
-        self.timer_widget = Timer(parent=self.app, timervm=TimerViewModel(default_state=State.IDLE, time_interval=Time.TIME_25_05_30))
-        self.timer_widget.pack(expand=True, fill=tk.BOTH, padx=20, pady=20)
+        self.timer.pack(expand=True, fill=tk.BOTH, padx=20, pady=20)
+
+    def _setup_menu(self):
+        """ Создание меню """
+        self.menu = MenuWidget(parent=self.app, app=self, timer=self.timer, localization=self.localization)
+        self.app.menu = self.menu
 
     def run(self):
         self.app.mainloop()

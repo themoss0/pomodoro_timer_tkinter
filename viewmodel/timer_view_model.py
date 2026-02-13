@@ -47,6 +47,8 @@ class TimerViewModel:
 
         return seconds
 
+    def set_time_preset(self, new_preset: Time):
+        self.time = new_preset
     
     def set_rest_configuration(self):
         self.running = True

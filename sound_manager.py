@@ -1,3 +1,4 @@
+import gc
 import os
 import sys
 from playsound3 import playsound
@@ -54,6 +55,10 @@ class SoundManager:
     def play_async(self, sound_name):
         """Асинхронное воспроизведение (по умолчанию)"""
         return self.play(sound_name, block=False)
+    
+    def __del__(self):
+        self.sounds.clear()
+        gc.collect()
 
 # Глобальный экземпляр (синглтон)
 _sound_manager = None
